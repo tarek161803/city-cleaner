@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>City Cleaner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Bungee&display=swap" rel="stylesheet" />
+    <script>
+      // Scale menus and HUD with the window (designed at 1280×760). Runs before first paint so nothing jumps.
+      (function () {
+        var fit = function () {
+          var s = Math.min(innerWidth / 1280, innerHeight / 760);
+          document.documentElement.style.setProperty('--ui-scale', String(Math.min(1.5, Math.max(0.7, s))));
+        };
+        fit();
+        addEventListener('resize', fit);
+      })();
+    </script>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0f12; font-family: system-ui, sans-serif; color: #eee; user-select: none; }
+      #app { position: fixed; inset: 0; }
+      #hud { position: fixed; inset: 0; pointer-events: none; }
+      .game-font { font-family: 'Bungee', Impact, system-ui, sans-serif; }
+      #score { position: absolute; right: 24px; top: 18px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+      #score .label { font-size: 13px; letter-spacing: 4px; color: #ffd166; text-shadow: 0 2px 0 #7a4b00, 0 3px 8px #000; }
+      #score-val { font-size: 46px; line-height: 1; color: #fff; -webkit-text-stroke: 2px #1b1b1b; text-shadow: 0 4px 0 #e63946, 0 6px 14px rgba(0,0,0,.6); }
+      .chips { display: flex; gap: 10px; }
+      .chip { display: flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 999px; border: 3px solid #1b1b1b; box-shadow: 0 4px 0 #1b1b1b; font-size: 22px; color: #1b1b1b; }
+      .chip .ico { font-size: 22px; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: #fff; border: 2px solid #1b1b1b; }
+      #chip-rk { background: linear-gradient(#ffe066, #f4a300); }
+      #chip-sl { background: linear-gradient(#7ee0c3, #1aa37a); }
+      .bump { animation: bump .35s cubic-bezier(.3,1.8,.5,1); }
+      @keyframes bump { 0% { transform: scale(1.45) rotate(-4deg); } 100% { transform: scale(1) rotate(0); } }
+      #combo { position: absolute; right: 24px; top: 176px; text-align: center; opacity: 0; transform: translateX(30px); transition: opacity .2s, transform .2s; }
+      #combo.on { opacity: 1; transform: none; }
+      #combo-x { font-size: 54px; line-height: 1; color: #ffd166; -webkit-text-stroke: 2px #1b1b1b; text-shadow: 0 4px 0 #e63946, 0 6px 14px rgba(0,0,0,.6); }
+      #combo .label { font-size: 14px; letter-spacing: 5px; color: #fff; text-shadow: 0 2px 6px #000; }
+      #combo-timer { width: 110px; height: 8px; margin: 6px auto 0; border-radius: 4px; background: rgba(0,0,0,.5); border: 2px solid #1b1b1b; overflow: hidden; }
+      #combo-fill { height: 100%; background: linear-gradient(90deg, #e63946, #ffd166); }
+      #popups { position: absolute; inset: 0; overflow: hidden; }
+      .popup.crash { font-size: 26px; color: #ff6b6b; }
+      .grit { position: absolute; left: 0; top: 0; display: flex; gap: 3px; padding: 3px 5px; background: rgba(0,0,0,.6); border: 2px solid #1b1b1b; border-radius: 8px; will-change: transform; }
+      .grit i { width: 10px; height: 10px; border-radius: 50%; background: #ff6b6b; border: 2px solid #1b1b1b; }
+      .grit i.off { background: #4b4b4b; }
+      .bubble { position: absolute; left: 0; top: 0; padding: 6px 12px; white-space: nowrap; font-family: "Kohinoor Bangla", "Bangla Sangam MN", "Noto Sans Bengali", system-ui, sans-serif; font-weight: 700; font-size: 16px; color: #1b1b1b; background: #fff; border: 3px solid #1b1b1b; border-radius: 14px; box-shadow: 0 3px 0 #1b1b1b; will-change: transform; }
+      .bubble::after { content: ""; position: absolute; left: 50%; bottom: -10px; margin-left: -8px; border: 8px solid transparent; border-top-color: #1b1b1b; border-bottom: 0; }
+      .popup { position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 30px; -webkit-text-stroke: 1.5px #1b1b1b; text-shadow: 0 3px 0 #1b1b1b; will-change: transform; }
+      .popup.rickshaw { color: #ffd166; }
+      .popup.stall { color: #7ee0c3; }
+      .popup.small { font-size: 18px; color: #fff; }
+      #toast { position: absolute; top: 26%; width: 100%; text-align: center; opacity: 0; }
+      #toast.on { animation: toast 1.6s ease-out forwards; }
+      #toast .t1 { font-size: 56px; color: #ffd166; -webkit-text-stroke: 2px #1b1b1b; text-shadow: 0 5px 0 #e63946, 0 8px 20px rgba(0,0,0,.6); }
+      #toast .t2 { font-size: 18px; letter-spacing: 6px; color: #fff; text-shadow: 0 2px 6px #000; }
+      @keyframes toast { 0% { opacity: 0; transform: scale(2.2); } 12% { opacity: 1; transform: scale(.95); } 20% { transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-20px); } }
+      #start { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;
+        background: radial-gradient(ellipse at center, rgba(20,16,10,.55), rgba(5,4,2,.88)), repeating-linear-gradient(135deg, rgba(255,209,102,.05) 0 18px, transparent 18px 36px);
+        backdrop-filter: blur(3px); }
+      /* Menu stays hidden until the game and its font are loaded, then fades in once. */
+      .menu { display: flex; flex-direction: column; align-items: center; text-align: center; opacity: 0; transition: opacity .3s ease-out; }
+      #start.ready .menu { opacity: 1; }
+      #loading { position: absolute; font-family: system-ui, sans-serif; font-size: 14px; letter-spacing: 4px; color: rgba(255,255,255,.7); }
+      #start.ready #loading { display: none; }
+      .menu .tag { font-family: "Kohinoor Bangla", "Bangla Sangam MN", "Noto Sans Bengali", system-ui, sans-serif; font-weight: 700; font-size: 17px; letter-spacing: 0; color: #1b1b1b; background: #7ee0c3; border: 3px solid #1b1b1b; box-shadow: 0 4px 0 #1b1b1b; border-radius: 999px; padding: 4px 16px; transform: rotate(-3deg); }
+      .menu h1 { margin: 14px 0 4px; font-size: 64px; line-height: .95; color: #ffd166; -webkit-text-stroke: 3px #1b1b1b; text-shadow: 0 6px 0 #e63946, 0 10px 24px rgba(0,0,0,.7); font-weight: 400; }
+      .hint { margin-top: 16px; font-size: 12px; letter-spacing: 2px; color: rgba(255,255,255,.75); text-shadow: 0 2px 6px #000; }
+      .hint kbd { margin: 0 6px; text-shadow: none; }
+      .menu, #score, #combo, #toast { zoom: var(--ui-scale, 1); }
+      #hud.menu-open #score, #hud.menu-open #combo, #hud.menu-open #popups { visibility: hidden; }
+      canvas { cursor: pointer; }
+      .paused-only { display: none; }
+      #start.paused .paused-only { display: flex; }
+      #start.paused .fresh-only { display: none; }
+      .paused-title { font-size: 44px; color: #fff; -webkit-text-stroke: 2px #1b1b1b; text-shadow: 0 5px 0 #e63946, 0 8px 20px rgba(0,0,0,.6); margin-bottom: 14px; }
+      .stats { gap: 12px; align-items: center; margin-bottom: 6px; }
+      .stats .chip { font-size: 24px; }
+      .stats .score-chip { background: linear-gradient(#ffffff, #d9d9d9); padding-left: 16px; }
+      .stats .score-chip small { font-size: 12px; letter-spacing: 2px; margin-right: 4px; }
+      #play { margin: 26px 0 22px; padding: 14px 40px; font-size: 28px; color: #1b1b1b; background: linear-gradient(#ffe066, #f4a300); border: 4px solid #1b1b1b; border-radius: 16px; box-shadow: 0 7px 0 #1b1b1b, 0 12px 26px rgba(0,0,0,.5); }
+      .keys { display: flex; gap: 34px; padding: 16px 26px 18px; background: rgba(0,0,0,.45); border: 3px solid #1b1b1b; border-radius: 16px; }
+      .keys .col { display: grid; grid-template-columns: max-content max-content; gap: 10px 12px; align-items: center; align-content: start; }
+      .keys .col-title { grid-column: 1 / -1; font-size: 12px; letter-spacing: 4px; color: #ffd166; text-align: left; margin-bottom: 2px; }
+      .key { display: contents; }
+      .key span { font-size: 13px; letter-spacing: 1px; color: #fff; text-align: left; }
+      .key kbd { justify-self: end; }
+      kbd { min-width: 34px; padding: 4px 8px; font-family: inherit; font-size: 13px; color: #1b1b1b; text-align: center; background: linear-gradient(#ffffff, #dcdcdc); border: 2px solid #1b1b1b; border-radius: 7px; box-shadow: 0 3px 0 #1b1b1b; }
+      kbd.mouse { background: linear-gradient(#7ee0c3, #1aa37a); }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud" class="menu-open">
+      <div id="popups" class="game-font"></div>
+      <div id="score" class="game-font">
+        <div class="label">SCORE</div>
+        <div id="score-val">0</div>
+        <div class="chips">
+          <div class="chip" id="chip-rk" title="Rickshaws smashed"><span class="ico">🛺</span><b id="rk">0</b></div>
+          <div class="chip" id="chip-sl" title="Stalls cleared"><span class="ico">🏪</span><b id="sl">0</b></div>
+        </div>
+      </div>
+      <div id="combo" class="game-font">
+        <div id="combo-x">×2</div>
+        <div class="label">COMBO</div>
+        <div id="combo-timer"><div id="combo-fill"></div></div>
+      </div>
+      <div id="toast" class="game-font"></div>
+      <div id="start" class="game-font">
+        <div id="loading">LOADING…</div>
+        <div class="menu">
+          <div class="tag fresh-only">সিটি ক্লিনার</div>
+          <h1 class="fresh-only">CITY CLEANER</h1>
+          <div class="paused-title paused-only">PAUSED</div>
+          <div class="stats paused-only">
+            <div class="chip score-chip"><small>SCORE</small><b id="p-score">0</b></div>
+            <div class="chip" style="background: linear-gradient(#ffe066, #f4a300)"><span class="ico">🛺</span><b id="p-rk">0</b></div>
+            <div class="chip" style="background: linear-gradient(#7ee0c3, #1aa37a)"><span class="ico">🏪</span><b id="p-sl">0</b></div>
+          </div>
+          <div id="play">▶ CLICK TO PLAY</div>
+          <div class="keys">
+            <div class="col">
+              <div class="col-title">MOVE</div>
+              <div class="key"><kbd>W A S D</kbd><span>WALK</span></div>
+              <div class="key"><kbd>SHIFT</kbd><span>SPRINT</span></div>
+              <div class="key"><kbd>SPACE</kbd><span>JUMP</span></div>
+            </div>
+            <div class="col">
+              <div class="col-title">SMASH</div>
+              <div class="key"><kbd class="mouse">LEFT CLICK</kbd><span>HAMMER COMBO</span></div>
+              <div class="key"><kbd class="mouse">RIGHT CLICK</kbd><span>SPIN SMASH</span></div>
+              <div class="key"><kbd>M</kbd><span>MUTE</span></div>
+            </div>
+          </div>
+          <div class="hint">PRESS <kbd>ESC</kbd> ANYTIME TO PAUSE</div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
