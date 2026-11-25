@@ -26,6 +26,9 @@ import { Sfx } from './audio/Sfx';
 const ACTOR_RANGE = 40;
 /** Seconds of frame times averaged before deciding whether to lower the resolution. */
 const PERF_WINDOW = 3;
+const RATIO_STEP = 0.25;
+/** Seconds between updates of the FPS counter. */
+const FPS_EVERY = 0.5;
 /** Vertical field of view (degrees) on a landscape or square screen. */
 const FOV = 65;
 /** On a portrait screen the view widens so at least this much is visible side to side (capped at MAX_FOV). */
@@ -83,11 +86,13 @@ export class Game {
   private lastDef: AttackDef | null = null;
   private perfT = 0;
   private perfFrames = 0;
+  /** Highest resolution still allowed: the screen's own, and below wherever it last had to step down. */
+  private ratioCap = Math.min(devicePixelRatio, QUALITY.maxPixelRatio);
 
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: QUALITY.antialias, powerPreference: 'high-performance' });
     // Phones have very dense screens and weaker GPUs: render at a lower resolution there.
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.maxPixelRatio));
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.pixelRatio));
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = QUALITY.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
@@ -149,8 +154,19 @@ export class Game {
 
   start() {
     let last = performance.now();
+    // Frame counter in the top-left corner, refreshed twice a second.
+    const fpsEl = document.getElementById('fps')!;
+    let fpsT = 0, fpsFrames = 0;
     const frame = (now: number) => {
       const frameT = (now - last) / 1000;
+      fpsT += frameT;
+      fpsFrames++;
+      if (fpsT >= FPS_EVERY) {
+        const fps = Math.round(fpsFrames / fpsT);
+        fpsEl.textContent = `${fps} FPS`;
+        fpsEl.classList.toggle('slow', fps < 30);
+        fpsT = fpsFrames = 0;
+      }
       const rawDt = Math.min(frameT, 1 / 20);
       last = now;
       this.adaptResolution(frameT);
@@ -161,8 +177,8 @@ export class Game {
   }
 
   /**
-   * Phones: if frames stay slow while playing, render at a lower resolution (a step every few
-   * seconds, down to a floor). Never goes back up, so it can't flicker between sizes.
+   * Phones: every few seconds of play, step the resolution down if frames are slow or up if there's
+   * headroom. Once it has had to step down it never climbs back past that, so it can't flicker.
    */
   private adaptResolution(frameT: number) {
     if (!this.input.locked || frameT > 0.5) {
@@ -176,10 +192,14 @@ export class Game {
     const avg = this.perfT / this.perfFrames;
     this.perfT = this.perfFrames = 0;
     const ratio = this.renderer.getPixelRatio();
-    if (avg > QUALITY.slowFrame && ratio > QUALITY.minPixelRatio) {
-      this.renderer.setPixelRatio(Math.max(QUALITY.minPixelRatio, ratio - 0.15));
-      this.renderer.setSize(innerWidth, innerHeight);
-    }
+    let next = ratio;
+    if (avg > QUALITY.slowFrame) {
+      next = Math.max(QUALITY.minPixelRatio, ratio - RATIO_STEP);
+      this.ratioCap = Math.min(this.ratioCap, next);
+    } else if (avg < QUALITY.fastFrame) next = Math.min(this.ratioCap, ratio + RATIO_STEP);
+    if (next === ratio) return;
+    this.renderer.setPixelRatio(next);
+    this.renderer.setSize(innerWidth, innerHeight);
   }
 
   private update(rawDt: number) {

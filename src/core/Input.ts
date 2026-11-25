@@ -9,6 +9,8 @@ const BUFFER_WINDOW = 0.35;
 const DOUBLE_ESC = 400;
 /** Touch: taps this soon after pausing (ms) don't resume. */
 const RESUME_GUARD = 500;
+/** Touch: a second tap within this many ms would be a double-tap zoom. */
+const DOUBLE_TAP = 350;
 
 export class Input {
   mouseDX = 0;
@@ -47,6 +49,23 @@ export class Input {
       // Fullscreen where the browser allows it (Android; iPhone Safari doesn't). Either orientation plays.
       document.documentElement.requestFullscreen?.().catch(() => {});
     });
+    // iOS Safari ignores user-scalable=no and touch-action for zooming: cancel its double-tap and
+    // pinch gestures directly (passive: false so preventDefault takes effect).
+    const noZoom = (e: Event) => e.preventDefault();
+    for (const type of ['dblclick', 'gesturestart', 'gesturechange', 'gestureend'])
+      document.addEventListener(type, noZoom, { passive: false });
+    // Older iOS zooms on two quick taps regardless (e.g. hammering SMASH): cancel the second touch's
+    // end. The controls work off pointerdown, so nothing is lost but that tap's click.
+    let lastTouchEnd = 0;
+    document.addEventListener(
+      'touchend',
+      (e) => {
+        const now = performance.now();
+        if (now - lastTouchEnd < DOUBLE_TAP) e.preventDefault();
+        lastTouchEnd = now;
+      },
+      { passive: false },
+    );
     const pause = () => this.pause();
     document.addEventListener('visibilitychange', () => document.hidden && pause());
     // Back gesture out of fullscreen on Android.

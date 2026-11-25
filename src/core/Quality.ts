@@ -8,10 +8,15 @@ export const IS_TOUCH = document.documentElement.classList.contains('touch');
  */
 export const QUALITY = IS_TOUCH
   ? {
-      maxPixelRatio: 1,
-      /** Still slow at this frame time (s) averaged over a few seconds: lower the resolution further. */
+      /** Starting resolution (× CSS pixels); it adapts between the min and max from the frame rate. */
+      pixelRatio: 1.5,
+      maxPixelRatio: 2,
+      /** Never below this: any lower and the picture turns to mush. */
+      minPixelRatio: 1,
+      /** Averaging slower than this frame time (s): lower the resolution a step. */
       slowFrame: 1 / 40,
-      minPixelRatio: 0.6,
+      /** Averaging faster than this: there's headroom, so sharpen a step. */
+      fastFrame: 1 / 56,
       antialias: false,
       softShadows: false,
       shadowMapSize: 1024,
@@ -27,9 +32,11 @@ export const QUALITY = IS_TOUCH
       fogFar: 140,
     }
   : {
+      pixelRatio: 2,
       maxPixelRatio: 2,
-      slowFrame: Infinity,
       minPixelRatio: 2,
+      slowFrame: Infinity,
+      fastFrame: 0,
       antialias: true,
       softShadows: true,
       shadowMapSize: 2048,
