@@ -3,6 +3,11 @@ import { clamp, damp, rand } from '../core/math';
 import { LANE_OFFSET, MEDIAN_HALF, type CircleCollider, type Lane } from '../world/City';
 import type { Post } from '../npcs/Person';
 import { Destructible, type Owner } from './Destructible';
+
+/** How far past the edge of the map a vehicle may drive on (the ground ends not much further out). */
+export const EXIT_RUN = 55;
+/** How far before the start of its road a vehicle re-enters, among the scenery past the far edge. */
+export const ENTRY_RUN = 40;
 import { PartsBuilder, type Part } from './Parts';
 
 export type VehicleKind = 'rickshaw' | 'bike' | 'car' | 'pickup' | 'bus' | 'cng' | 'microbus' | 'truck' | 'leguna';
@@ -64,8 +69,6 @@ export class Vehicle extends Destructible implements Post {
   /** No new crash until this runs out. */
   crashCooldown = 0;
   readonly id = nextId++;
-  /** Set when it just looped from the end of the road back to the start. */
-  wrapped = false;
   /** Seconds without moving, for clearing hopeless gridlock out of sight. */
   idleT = 0;
   /** Seconds crawling at most, for spotting deadlocks where everyone just inches back and forth. */
@@ -234,12 +237,13 @@ export class Vehicle extends Destructible implements Post {
     // Giving way: reverse slowly into whatever room there is behind.
     if (this.yieldT > 0 && backRoom > 0) {
       const back = Math.min(1.2 * dt, backRoom);
-      this.s = Math.max(0, this.s - back);
+      this.s = Math.max(-ENTRY_RUN, this.s - back);
       this.wheelAngle -= back / spec.wheelR;
     }
-    if (this.s > this.lane.length) {
-      this.s -= this.lane.length;
-      this.wrapped = true;
+    // Past the edge of the map it drives on into the scenery until Traffic takes it away; never off the ground.
+    if (this.s > this.lane.length + EXIT_RUN) {
+      this.s = this.lane.length + EXIT_RUN;
+      this.speed = 0;
     }
     this.wheelAngle += (this.speed * dt) / spec.wheelR;
     for (const w of this.wheelMeshes) w.rotation.x = this.wheelAngle;
@@ -266,11 +270,14 @@ export class Vehicle extends Destructible implements Post {
     this.syncTransform();
   }
 
-  /** Start of the road is blocked: wait at the end instead of looping onto another vehicle. */
-  unwrap() {
-    this.s = this.lane.length - 0.01;
-    this.speed = 0;
-    this.syncTransform();
+  /** Has driven right off the end of its road, past the edge of the map. */
+  get offEdge() {
+    return this.s > this.lane.length + this.spec.halfLength;
+  }
+
+  /** At the furthest it may drive past the edge: time to go, seen or not. */
+  get atRunEnd() {
+    return this.s >= this.lane.length + EXIT_RUN;
   }
 
   /** Bumped into another vehicle: stop dead where it is. */

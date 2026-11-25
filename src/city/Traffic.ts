@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { City, Lane } from '../world/City';
 import { Rickshaw } from './Rickshaw';
 import { Bike, Bus, Car, Cng, Leguna, Microbus, Pickup, Truck } from './Motors';
-import type { Vehicle } from './Vehicle';
+import { ENTRY_RUN, type Vehicle } from './Vehicle';
 
 /** How many of each vehicle roam the city. */
 const FLEET: [() => Vehicle, number][] = [
@@ -113,12 +113,9 @@ export class Traffic {
         v.idleT = 0;
         this.spawn(v, playerPos, NEAR_DIST, false);
       }
-      // Reached the end of the road and looped to the start. If the start is taken, carry on from
-      // some other free spot instead of parking at the edge of the map (which jams the corners).
-      if (v.wrapped) {
-        v.wrapped = false;
-        if (this.occupied(v, v.pos.x, v.pos.z) && !this.spawn(v, playerPos, RESPAWN_DIST, false)) v.unwrap();
-      }
+      // Drove off the end of the road: it carries on past the edge of the map and only goes once the
+      // player can't see it (or it reaches the end of the ground), so nothing vanishes in plain view.
+      if (v.offEdge && (v.atRunEnd || !this.inSight(v.pos, v.spec.halfLength, playerPos))) this.reenter(v, playerPos);
       v.updateVisual(dt, playerPos);
     }
     this.breakDeadlocks(live, playerPos);
@@ -271,6 +268,17 @@ export class Traffic {
       const room = o.spec.halfLength + v.spec.halfLength + 2;
       return Math.abs(o.pos.x - x) < room && Math.abs(o.pos.z - z) < room;
     });
+  }
+
+  /**
+   * Bring a vehicle that drove off the edge back in from beyond the far end of its road, so it drives
+   * into the map; if that spot is taken or in view, somewhere else free and out of sight.
+   */
+  private reenter(v: Vehicle, playerPos: THREE.Vector3) {
+    const { origin, dir } = v.lane;
+    const x = origin.x - dir.x * ENTRY_RUN, z = origin.z - dir.z * ENTRY_RUN;
+    if (!this.inSight(_a1.set(x, 0, z), v.spec.halfLength, playerPos) && !this.occupied(v, x, z)) v.place(v.lane, -ENTRY_RUN);
+    else this.spawn(v, playerPos, RESPAWN_DIST, false);
   }
 
   /** Put a vehicle on a free spot of some lane; with `newDriver` false the current driver comes along. */

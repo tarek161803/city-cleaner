@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { HumanRig } from './core/HumanRig';
-import { Input } from './core/Input';
+import { IS_TOUCH, Input } from './core/Input';
 import type { Actor } from './core/Actor';
 import { Particles, Shake, TimeControl } from './combat/Feel';
 import { Debris } from './combat/Debris';
@@ -23,6 +23,11 @@ import { Sfx } from './audio/Sfx';
 
 /** People further than this from the player don't collide with each other. */
 const ACTOR_RANGE = 40;
+/** Vertical field of view (degrees) on a landscape or square screen. */
+const FOV = 65;
+/** On a portrait screen the view widens so at least this much is visible side to side (capped at MAX_FOV). */
+const MIN_H_FOV = 55;
+const MAX_FOV = 90;
 /** Extra reach added to target radius for the hammer head. */
 const HEAD_RADIUS = 0.3;
 const DUST = new THREE.Color(0xa89880);
@@ -47,7 +52,7 @@ const _bat = new THREE.Vector3();
 export class Game {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 5000);
+  private camera = new THREE.PerspectiveCamera(FOV, innerWidth / innerHeight, 0.1, 5000);
   private input: Input;
   private city: City;
   private camCtl: ThirdPersonCamera;
@@ -76,7 +81,8 @@ export class Game {
 
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    // Phones have very dense screens and weaker GPUs: render at a lower resolution there.
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2));
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -96,11 +102,20 @@ export class Game {
     // The flash light is always in the scene (at zero intensity) so adding it never recompiles shaders.
     this.scene.add(this.dust.points, this.sparks.points, this.flash);
 
+    this.fitCamera();
     addEventListener('resize', () => {
-      this.camera.aspect = innerWidth / innerHeight;
-      this.camera.updateProjectionMatrix();
+      this.fitCamera();
       this.renderer.setSize(innerWidth, innerHeight);
     });
+  }
+
+  /** Match the screen's shape; a tall phone screen gets a wider view so the sides aren't cut off. */
+  private fitCamera() {
+    const aspect = innerWidth / innerHeight;
+    const forWidth = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(MIN_H_FOV / 2)) / aspect));
+    this.camera.aspect = aspect;
+    this.camera.fov = THREE.MathUtils.clamp(forWidth, FOV, MAX_FOV);
+    this.camera.updateProjectionMatrix();
   }
 
   async init() {
@@ -200,7 +215,8 @@ export class Game {
     city.follow(player.pos);
 
     this.hud.updateGrit(this.crowd.people.filter((p) => p.mode === 'defend'));
-    this.hud.update(paused ? 0 : rawDt, input.locked, this.camera);
+    // Keep the menu hidden while the click to play is still settling into fullscreen + pointer lock.
+    this.hud.update(paused ? 0 : rawDt, input.locked || input.settling, this.camera);
     this.renderer.render(this.scene, this.camera);
     input.endFrame();
   }

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { IS_TOUCH } from '../core/Input';
 
 const $ = (id: string) => document.getElementById(id)!;
 const _v = new THREE.Vector3();
@@ -64,6 +65,7 @@ export class HUD {
 
   /** Reveal the title menu once the arcade font is in, so the text never reflows on screen. */
   ready() {
+    if (IS_TOUCH) this.play.textContent = '▶ TAP TO PLAY';
     document.fonts.ready.then(() => this.start.classList.add('ready'));
   }
 

@@ -33,8 +33,8 @@ export class Player extends Actor {
   ) {
 
     // Camera-relative input. Camera forward is (sin yaw, 0, cos yaw); its right is (-cos yaw, 0, sin yaw).
-    const ix = (input.down('KeyD') ? 1 : 0) - (input.down('KeyA') ? 1 : 0);
-    const iz = (input.down('KeyW') ? 1 : 0) - (input.down('KeyS') ? 1 : 0);
+    const ix = (input.down('KeyD') ? 1 : 0) - (input.down('KeyA') ? 1 : 0) + input.moveX;
+    const iz = (input.down('KeyW') ? 1 : 0) - (input.down('KeyS') ? 1 : 0) + input.moveZ;
     _wish
       .set(Math.sin(camYaw) * iz - Math.cos(camYaw) * ix, 0, Math.cos(camYaw) * iz + Math.sin(camYaw) * ix)
       .normalize();
