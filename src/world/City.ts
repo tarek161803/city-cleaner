@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { PartsBuilder } from '../city/Parts';
 import { clamp, mulberry32 } from '../core/math';
+import { QUALITY } from '../core/Quality';
 import {
   asphaltTexture,
   billboardTexture,
@@ -342,14 +343,14 @@ export class City {
     u.sunPosition.value.copy(this.sunDir);
     this.scene.add(sky);
     // Light Dhaka haze.
-    this.scene.fog = new THREE.Fog(0xdcd5c6, 45, 230);
+    this.scene.fog = new THREE.Fog(0xdcd5c6, QUALITY.fogNear, QUALITY.fogFar);
   }
 
   private buildLights() {
     this.scene.add(new THREE.HemisphereLight(0xe2ebf7, 0x8a7f6a, 1.25));
     const s = this.sun;
     s.castShadow = true;
-    s.shadow.mapSize.set(2048, 2048);
+    s.shadow.mapSize.set(QUALITY.shadowMapSize, QUALITY.shadowMapSize);
     const c = s.shadow.camera;
     c.left = c.bottom = -45;
     c.right = c.top = 45;

@@ -3,6 +3,7 @@ import { Actor } from '../core/Actor';
 import type { HumanRig } from '../core/HumanRig';
 import type { Carry } from '../core/Outfit';
 import { damp, rand, turnToward } from '../core/math';
+import { QUALITY } from '../core/Quality';
 import { ROAD, WORLD_HALF, type Block, type City } from '../world/City';
 
 /** A rickshaw saddle or stall counter a person is attached to (and will defend). */
@@ -88,7 +89,7 @@ const SHOVE_COOLDOWN = 1.6;
 /** Defenders go back to work once the player has been this far from their property for a while. */
 const STAND_DOWN_DIST = 16;
 /** Hidden and not animated beyond this distance. */
-const CULL_DIST = 80;
+export const CULL_DIST = QUALITY.personCull;
 /** How often (s) a walker checks for a stall blocking the footpath ahead. */
 const DETOUR_CHECK = 0.2;
 /** Ring inset used to walk round a footpath stall: negative = out in the road beside the kerb. */

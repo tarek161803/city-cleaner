@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { mergeParts, type Part, type PartsBuilder } from './Parts';
 import { rand } from '../core/math';
+import { QUALITY } from '../core/Quality';
 
-const CULL_DIST = 150;
+const CULL_DIST = QUALITY.propCull;
 
 /** How a prop comes apart under blows that don't finish it. */
 export interface Breakup {

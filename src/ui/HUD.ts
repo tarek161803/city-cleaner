@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { IS_TOUCH } from '../core/Input';
+import { IS_TOUCH } from '../core/Quality';
 
 const $ = (id: string) => document.getElementById(id)!;
 const _v = new THREE.Vector3();

@@ -1,9 +1,7 @@
+import { IS_TOUCH } from './Quality';
 import { TouchControls } from './TouchControls';
 
 export type BufferedAction = 'light' | 'heavy';
-
-/** Phone or tablet: on-screen controls instead of mouse and keyboard (set on <html> before first paint). */
-export const IS_TOUCH = document.documentElement.classList.contains('touch');
 
 const GAME_KEYS = new Set(['Space']);
 const BUFFER_WINDOW = 0.35;

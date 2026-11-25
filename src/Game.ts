@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { HumanRig } from './core/HumanRig';
-import { IS_TOUCH, Input } from './core/Input';
+import { Input } from './core/Input';
+import { QUALITY } from './core/Quality';
 import type { Actor } from './core/Actor';
 import { Particles, Shake, TimeControl } from './combat/Feel';
 import { Debris } from './combat/Debris';
@@ -23,6 +24,8 @@ import { Sfx } from './audio/Sfx';
 
 /** People further than this from the player don't collide with each other. */
 const ACTOR_RANGE = 40;
+/** Seconds of frame times averaged before deciding whether to lower the resolution. */
+const PERF_WINDOW = 3;
 /** Vertical field of view (degrees) on a landscape or square screen. */
 const FOV = 65;
 /** On a portrait screen the view widens so at least this much is visible side to side (capped at MAX_FOV). */
@@ -78,14 +81,16 @@ export class Game {
   private blockers: Blocker[] = [];
   private lastPhase: Phase | null = null;
   private lastDef: AttackDef | null = null;
+  private perfT = 0;
+  private perfFrames = 0;
 
   constructor(container: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({ antialias: QUALITY.antialias, powerPreference: 'high-performance' });
     // Phones have very dense screens and weaker GPUs: render at a lower resolution there.
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2));
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.maxPixelRatio));
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = QUALITY.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     container.appendChild(this.renderer.domElement);
@@ -145,12 +150,36 @@ export class Game {
   start() {
     let last = performance.now();
     const frame = (now: number) => {
-      const rawDt = Math.min((now - last) / 1000, 1 / 20);
+      const frameT = (now - last) / 1000;
+      const rawDt = Math.min(frameT, 1 / 20);
       last = now;
+      this.adaptResolution(frameT);
       this.update(rawDt);
       requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
+  }
+
+  /**
+   * Phones: if frames stay slow while playing, render at a lower resolution (a step every few
+   * seconds, down to a floor). Never goes back up, so it can't flicker between sizes.
+   */
+  private adaptResolution(frameT: number) {
+    if (!this.input.locked || frameT > 0.5) {
+      // Paused, or a hitch (tab switch, loading): don't count it.
+      this.perfT = this.perfFrames = 0;
+      return;
+    }
+    this.perfT += frameT;
+    this.perfFrames++;
+    if (this.perfT < PERF_WINDOW) return;
+    const avg = this.perfT / this.perfFrames;
+    this.perfT = this.perfFrames = 0;
+    const ratio = this.renderer.getPixelRatio();
+    if (avg > QUALITY.slowFrame && ratio > QUALITY.minPixelRatio) {
+      this.renderer.setPixelRatio(Math.max(QUALITY.minPixelRatio, ratio - 0.15));
+      this.renderer.setSize(innerWidth, innerHeight);
+    }
   }
 
   private update(rawDt: number) {

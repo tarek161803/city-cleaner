@@ -1,22 +1,23 @@
 import * as THREE from 'three';
 import { HumanRig, type Look } from '../core/HumanRig';
 import type { City } from '../world/City';
-import { Person, type PersonContext, type Post } from './Person';
+import { CULL_DIST, Person, type PersonContext, type Post } from './Person';
+import { QUALITY } from '../core/Quality';
 import type { Vehicle, VehicleKind } from '../city/Vehicle';
 
-const PEDESTRIANS = 260;
+const PEDESTRIANS = QUALITY.pedestrians;
 /**
  * Walkers (people with no rickshaw or stall of their own) are capped at this: owners who fled add to
  * the crowd, and the calm, distant extras are removed. Drivers and shopkeepers don't count.
  */
-const MAX_WALKERS = 300;
+const MAX_WALKERS = QUALITY.maxWalkers;
 const PRUNE_DIST = 90;
 /**
  * Walkers further than this from the player are moved to a footpath RECYCLE_TO metres away: just past
  * the distance people are drawn at, so they walk into view rather than pop in.
  */
-const RECYCLE_DIST = 115;
-const RECYCLE_TO = [82, 105] as const;
+const RECYCLE_DIST = CULL_DIST + 35;
+const RECYCLE_TO = [CULL_DIST + 2, CULL_DIST + 25] as const;
 /** At most this many walkers are moved per frame. */
 const RECYCLE_PER_FRAME = 4;
 

@@ -3,6 +3,7 @@ import type { City, Lane } from '../world/City';
 import { Rickshaw } from './Rickshaw';
 import { Bike, Bus, Car, Cng, Leguna, Microbus, Pickup, Truck } from './Motors';
 import { ENTRY_RUN, type Vehicle } from './Vehicle';
+import { QUALITY } from '../core/Quality';
 
 /** How many of each vehicle roam the city. */
 const FLEET: [() => Vehicle, number][] = [
@@ -77,7 +78,7 @@ export class Traffic {
 
   populate(playerPos: THREE.Vector3) {
     for (const [make, count] of FLEET) {
-      for (let i = 0; i < count; i++) {
+      for (let i = 0; i < Math.round(count * QUALITY.traffic); i++) {
         const v = make();
         this.vehicles.push(v);
         if (v instanceof Rickshaw) this.rickshaws.push(v);
