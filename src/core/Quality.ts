@@ -4,7 +4,7 @@ export const IS_TOUCH = document.documentElement.classList.contains('touch');
 /**
  * Rendering and population settings. Phones get a lighter city (fewer vehicles and people, nearer
  * draw distances hidden by thicker haze, cheaper shadows, lower resolution) so the frame rate holds;
- * desktop keeps the full version.
+ * desktop starts at full quality and steps down by itself on slower machines.
  */
 export const QUALITY = IS_TOUCH
   ? {
@@ -34,10 +34,13 @@ export const QUALITY = IS_TOUCH
   : {
       pixelRatio: 2,
       maxPixelRatio: 2,
-      minPixelRatio: 2,
-      slowFrame: Infinity,
-      fastFrame: 0,
-      antialias: true,
+      /** Old desktops with 1× screens can drop a little below native before shadows are cut. */
+      minPixelRatio: 0.75,
+      /** Monitors refresh at 60 Hz or more, so anything averaging under ~48 FPS is struggling. */
+      slowFrame: 1 / 48,
+      fastFrame: 1 / 57,
+      /** MSAA on top of a 2× (retina) buffer costs a lot for little gain. */
+      antialias: devicePixelRatio < 1.5,
       softShadows: true,
       shadowMapSize: 2048,
       traffic: 1,

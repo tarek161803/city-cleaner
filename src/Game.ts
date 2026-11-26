@@ -177,8 +177,9 @@ export class Game {
   }
 
   /**
-   * Phones: every few seconds of play, step the resolution down if frames are slow or up if there's
-   * headroom. Once it has had to step down it never climbs back past that, so it can't flicker.
+   * Every few seconds of play, step the resolution down if frames are slow or up if there's headroom.
+   * Once it has had to step down it never climbs back past that, so it can't flicker. If it's still
+   * slow at the lowest resolution, the shadows get cheaper.
    */
   private adaptResolution(frameT: number) {
     if (!this.input.locked || frameT > 0.5) {
@@ -194,12 +195,32 @@ export class Game {
     const ratio = this.renderer.getPixelRatio();
     let next = ratio;
     if (avg > QUALITY.slowFrame) {
+      if (ratio <= QUALITY.minPixelRatio) return this.cheaperShadows();
       next = Math.max(QUALITY.minPixelRatio, ratio - RATIO_STEP);
       this.ratioCap = Math.min(this.ratioCap, next);
     } else if (avg < QUALITY.fastFrame) next = Math.min(this.ratioCap, ratio + RATIO_STEP);
     if (next === ratio) return;
     this.renderer.setPixelRatio(next);
     this.renderer.setSize(innerWidth, innerHeight);
+  }
+
+  /** One step down: soft filtering off first, then a smaller shadow map. Each step recompiles once. */
+  private cheaperShadows() {
+    const map = this.renderer.shadowMap;
+    const shadow = this.city.sun.shadow;
+    if (map.type === THREE.PCFSoftShadowMap) {
+      map.type = THREE.PCFShadowMap;
+      // The filter is baked into every shader that receives shadows.
+      this.scene.traverse((o) => {
+        const m = (o as THREE.Mesh).material;
+        if (m) for (const mat of Array.isArray(m) ? m : [m]) mat.needsUpdate = true;
+      });
+    } else if (shadow.mapSize.x > 1024) {
+      shadow.mapSize.set(1024, 1024);
+      shadow.map?.dispose();
+      shadow.map = null;
+    } else return;
+    map.needsUpdate = true;
   }
 
   private update(rawDt: number) {
